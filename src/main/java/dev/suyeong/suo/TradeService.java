@@ -62,6 +62,7 @@ final class TradeService {
         MenuKind kind = view.kind();
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             if (session.finished() || !session.stage().shows(kind)) {
+                session.unlock();
                 return;
             }
             switch (kind) {
@@ -79,6 +80,7 @@ final class TradeService {
         }
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             if (session.finished() || !session.stage().shows(view.kind())) {
+                session.unlock();
                 return;
             }
             refund(session, player, false);
@@ -105,6 +107,7 @@ final class TradeService {
         if (!session.transition(Stage.PENDING, Stage.COUNTER)) {
             return;
         }
+        session.unlock();
         partner.openInventory(menus.counter(session));
     }
 
@@ -132,6 +135,7 @@ final class TradeService {
         if (!session.transition(Stage.REVIEW, Stage.FINAL)) {
             return;
         }
+        session.unlock();
         requester.openInventory(menus.review(session));
     }
 
@@ -209,28 +213,33 @@ final class TradeService {
 
     private void confirmOffer(Player player, TradeSession session) {
         if (!session.transition(Stage.OFFER, Stage.PENDING)) {
+            session.unlock();
             return;
         }
         session.setOffer(takeInputs(player, session, MenuKind.OFFER));
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             closeNow(player, session);
+            session.unlock();
             deliverRequest(session);
         });
     }
 
     private void confirmCounter(Player player, TradeSession session) {
         if (!session.transition(Stage.COUNTER, Stage.REVIEW)) {
+            session.unlock();
             return;
         }
         session.setCounter(takeInputs(player, session, MenuKind.COUNTER));
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             closeNow(player, session);
+            session.unlock();
             deliverReview(session);
         });
     }
 
     private void confirmFinal(Player player, TradeSession session) {
         if (!session.transition(Stage.FINAL, Stage.DONE)) {
+            session.unlock();
             return;
         }
         stripOpen(player, session);

@@ -69,6 +69,10 @@ final class TradeSession {
         return true;
     }
 
+    void unlock() {
+        locked = false;
+    }
+
     boolean transition(Stage from, Stage to) {
         if (finished || stage != from) {
             return false;
