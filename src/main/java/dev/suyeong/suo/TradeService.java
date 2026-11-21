@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.Inventory;
@@ -23,12 +24,18 @@ final class TradeService {
 
     private final JavaPlugin plugin;
     private final TradeMenus menus;
+    private final TradeLog log;
     private final Map<UUID, TradeSession> byId = new ConcurrentHashMap<>();
     private final Map<UUID, TradeSession> byPlayer = new ConcurrentHashMap<>();
 
     TradeService(JavaPlugin plugin) {
         this.plugin = plugin;
         this.menus = new TradeMenus(plugin);
+        this.log = new TradeLog(plugin);
+    }
+
+    void showHistory(CommandSender sender, int page) {
+        log.show(sender, page);
     }
 
     boolean isLocked(TradeView view) {
@@ -83,7 +90,7 @@ final class TradeService {
                 session.unlock();
                 return;
             }
-            refund(session, player, false);
+            refund(session, player, false, "취소 버튼");
         });
     }
 
@@ -92,7 +99,7 @@ final class TradeService {
         if (session == null || session.finished() || !session.stage().shows(view.kind())) {
             return;
         }
-        refund(session, player, true);
+        refund(session, player, true, "창을 닫음");
     }
 
     void accept(Player partner, UUID sessionId) {
@@ -120,7 +127,7 @@ final class TradeService {
         if (!partner.getUniqueId().equals(session.partnerId()) || session.stage() != Stage.PENDING) {
             return;
         }
-        refund(session, partner, false);
+        refund(session, partner, false, "거절");
     }
 
     void review(Player requester, UUID sessionId) {
@@ -144,7 +151,7 @@ final class TradeService {
         if (session == null || session.finished()) {
             return;
         }
-        refund(session, player, false);
+        refund(session, player, false, "접속 종료");
     }
 
     void death(PlayerDeathEvent event) {
@@ -170,6 +177,7 @@ final class TradeService {
         TradeMessages.cancelledTo(held.requester());
         if (held.stage() != Stage.OFFER) {
             TradeMessages.cancelledTo(held.partner());
+            log.cancelled(session.requesterName(), session.partnerName(), held.requesterItems(), held.partnerItems(), dead.getName() + " · 사망");
         }
         closeLater(other, session);
         plugin.getLogger().info(session.requesterName() + " 님과 " + session.partnerName() + " 님의 거래가 사망으로 취소되었습니다.");
@@ -201,7 +209,7 @@ final class TradeService {
 
     void shutdown() {
         for (TradeSession session : List.copyOf(byId.values())) {
-            refund(session, null, false);
+            refund(session, null, false, "서버 종료");
             for (Player player : List.copyOf(plugin.getServer().getOnlinePlayers())) {
                 Inventory top = player.getOpenInventory().getTopInventory();
                 if (top.getHolder() instanceof TradeView view && view.sessionId().equals(session.id())) {
@@ -247,6 +255,7 @@ final class TradeService {
         ItemStack[] counter = session.takeCounter();
         unlink(session);
         Player partner = player(session.partnerId(), null);
+        log.approved(session.requesterName(), session.partnerName(), offer, counter);
         Items.give(partner, true, offer);
         Items.give(player, true, counter);
         TradeMessages.approvedTo(player);
@@ -262,7 +271,7 @@ final class TradeService {
         Player partner = player(session.partnerId(), null);
         Player requester = player(session.requesterId(), null);
         if (partner == null) {
-            refund(session, requester, false);
+            refund(session, requester, false, "상대방 오프라인");
             return;
         }
         TradeMessages.request(partner, session, this, plugin);
@@ -279,7 +288,7 @@ final class TradeService {
         Player requester = player(session.requesterId(), null);
         Player partner = player(session.partnerId(), null);
         if (requester == null) {
-            refund(session, partner, false);
+            refund(session, partner, false, "요청자 오프라인");
             return;
         }
         TradeMessages.review(requester, session, this, plugin);
@@ -295,11 +304,11 @@ final class TradeService {
             if (session.finished() || session.stage() != stage || session.generation() != generation) {
                 return;
             }
-            refund(session, null, false);
+            refund(session, null, false, "시간 초과");
         }, DECISION_TIMEOUT_TICKS);
     }
 
-    private void refund(TradeSession session, Player actor, boolean fromClose) {
+    private void refund(TradeSession session, Player actor, boolean fromClose, String reason) {
         Held held = take(session, actor);
         if (held == null) {
             return;
@@ -309,6 +318,8 @@ final class TradeService {
         TradeMessages.cancelledTo(held.requester());
         if (held.stage() != Stage.OFFER) {
             TradeMessages.cancelledTo(held.partner());
+            String actorName = actor == null ? "" : actor.getName() + " · ";
+            log.cancelled(session.requesterName(), session.partnerName(), held.requesterItems(), held.partnerItems(), actorName + reason);
         }
         if (!fromClose) {
             closeLater(held.requester(), session);

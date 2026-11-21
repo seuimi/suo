@@ -6,8 +6,8 @@ author: Suyeong
 description: 플레이어끼리 아이템을 맞교환하는 거래 플러그인
 commands:
   suo:
-    description: 다른 플레이어에게 거래를 요청합니다.
-    usage: /suo <닉네임>
+    description: 다른 플레이어에게 거래를 요청합니다. OP는 /suo check 로 거래 내역을 봅니다.
+    usage: /<command> <닉네임|check>
     permission: suo.use
 permissions:
   suo.use:

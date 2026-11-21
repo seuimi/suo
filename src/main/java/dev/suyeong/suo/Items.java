@@ -1,14 +1,19 @@
 package dev.suyeong.suo;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 
 final class Items {
     private static final Component OVERFLOW = Component.text(
@@ -121,6 +126,52 @@ final class Items {
             }
         }
         return overflow;
+    }
+
+    static String summarize(ItemStack[] items) {
+        if (items == null) {
+            return "없음";
+        }
+        List<String> parts = new ArrayList<>();
+        for (ItemStack stack : items) {
+            if (!present(stack)) {
+                continue;
+            }
+            parts.add(summarize(stack));
+        }
+        return parts.isEmpty() ? "없음" : String.join(", ", parts);
+    }
+
+    private static String summarize(ItemStack stack) {
+        StringBuilder text = new StringBuilder(nameOf(stack)).append(" x").append(stack.getAmount());
+        ItemMeta meta = stack.getItemMeta();
+        if (meta != null && meta.hasEnchants()) {
+            text.append(" [");
+            boolean first = true;
+            for (Map.Entry<Enchantment, Integer> enchant : meta.getEnchants().entrySet()) {
+                if (!first) {
+                    text.append(", ");
+                }
+                first = false;
+                text.append(enchant.getKey().getKey().getKey()).append(' ').append(enchant.getValue());
+            }
+            text.append(']');
+        }
+        return text.toString();
+    }
+
+    private static String nameOf(ItemStack stack) {
+        ItemMeta meta = stack.getItemMeta();
+        if (meta != null && meta.hasDisplayName()) {
+            Component displayName = meta.displayName();
+            if (displayName != null) {
+                String plain = PlainTextComponentSerializer.plainText().serialize(displayName).trim();
+                if (!plain.isEmpty()) {
+                    return plain;
+                }
+            }
+        }
+        return stack.getType().getKey().getKey().replace('_', ' ');
     }
 
     private static boolean present(ItemStack stack) {
